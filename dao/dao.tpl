@@ -15,10 +15,11 @@ type (
 	// 基础接口 + 扩展方法
 	{{.ModelName}}Dao interface {
 		// 基础接口，基于单表
-        Truncate() error
+        Truncate() error  // 清空表并重置自增主键
 		FindOne(id int) (*bo.{{.ModelName}}Bo, error) // 根据id查询
 		FindOneByUk()                              // 根据唯一键查询
 		Insert(obj bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
+		InsertBatch(objs []bo.{{.ModelName}}Bo) (int64, error)  // 500条以内
 		Update(obj bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
 
 		// 扩展接口
@@ -93,6 +94,16 @@ func (d *custom{{.ModelName}}Dao) Insert(obj bo.{{.ModelName}}Bo) (*bo.{{.ModelN
 	}
 
 	return &obj, err
+}
+
+// InsertBatch 插入 (事务内)
+func (d *custom{{.ModelName}}Dao) InsertBatch(objs []bo.{{.ModelName}}Bo) (int64, error) {
+	err := d.tx.Create(&objs).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(len(objs)), err
 }
 
 // Update 更新(事务内)
