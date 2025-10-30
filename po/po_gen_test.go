@@ -20,7 +20,7 @@ func TestGenPo_MongoDB(t *testing.T) {
 	// database := "test_1029"
 	// username := "appuser"
 	// password := "app123"
-	// tables := []string{"myCollection", "users"}
+	// tables := []string{"users"}
 	// poDir := "/Users/huanlema/Documents/Code/my_code/github_go-framework-v2/go-backnormal-gen/po"
 
 	// err := GenPo_MongoDB_WithConfig(host, port, database, username, password, tables, poDir)

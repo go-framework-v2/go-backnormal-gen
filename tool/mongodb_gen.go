@@ -56,14 +56,15 @@ func AnalyzeMongoCollection(client *mongo.Client, database, collectionName strin
 func InferFieldsFromSample(doc bson.M) []MongoField {
 	var fields []MongoField
 
-	// 总是包含 ID 字段
+	// 添加 ID 字段
 	fields = append(fields, MongoField{
 		Name:      "ID",
 		Type:      "primitive.ObjectID",
-		BSONTag:   "_id,omitempty",
+		BSONTag:   "_id",
 		OmitEmpty: true,
 	})
 
+	// 只从实际文档中提取字段
 	for key, value := range doc {
 		// 跳过 _id 字段，因为我们已经手动添加了
 		if key == "_id" {
@@ -102,20 +103,6 @@ func InferFieldsFromSample(doc bson.M) []MongoField {
 		fields = append(fields, field)
 	}
 
-	// 添加常用的时间字段
-	commonTimeFields := []string{"created_at", "updated_at", "deleted_at"}
-	for _, timeField := range commonTimeFields {
-		if _, exists := doc[timeField]; !exists {
-			// 如果样本中没有这些字段，但通常会有，可以手动添加
-			fields = append(fields, MongoField{
-				Name:      ToCamelCase(timeField),
-				Type:      "time.Time",
-				BSONTag:   timeField,
-				OmitEmpty: true,
-			})
-		}
-	}
-
 	return fields
 }
 
@@ -139,7 +126,8 @@ func generatePOContent(model *MongoModel) string {
 
 	for _, field := range model.Fields {
 		bsonTag := field.BSONTag
-		if field.OmitEmpty {
+		// 确保不重复添加 omitempty
+		if field.OmitEmpty && !strings.Contains(bsonTag, "omitempty") {
 			bsonTag += ",omitempty"
 		}
 
@@ -150,9 +138,6 @@ func generatePOContent(model *MongoModel) string {
 	return fmt.Sprintf(`package po
 
 import (
-	"time"
-
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
