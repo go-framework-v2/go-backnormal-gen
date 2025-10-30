@@ -204,3 +204,17 @@ func ConvertMongoFieldsToBOFields(mongoFields []MongoField) []Field {
 
 	return boFields
 }
+
+func ConvertMongoFieldsToDAOFields(mongoFields []MongoField) []Field {
+	var daoFields []Field
+
+	for _, mongoField := range mongoFields {
+		daoField := Field{
+			Name: mongoField.Name,
+			Type: mongoField.Type,
+		}
+		daoFields = append(daoFields, daoField)
+	}
+
+	return daoFields
+}

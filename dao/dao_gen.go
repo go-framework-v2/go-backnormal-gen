@@ -1,17 +1,24 @@
 package dao
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/go-framework-v2/go-backnormal-gen/tool"
 	_ "github.com/go-sql-driver/mysql" // 或其他数据库驱动
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 //go:embed dao.tpl
 var daoTplFS embed.FS // 嵌入整个目录或单个文件
+
+//go:embed dao_mongo.tpl
+var daoTplFS_mongo embed.FS // 嵌入整个目录或单个文件
 
 func GenDao_Mysql(dsn string, tables []string, daoDir string, boPath string) error {
 	// 1. 连接数据库
@@ -58,6 +65,65 @@ func GenDao_Mysql(dsn string, tables []string, daoDir string, boPath string) err
 		// 获取本文件所在目录
 		if err := tool.GenerateFromBytes_dao(model, tplContent, daoDir); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func GenDao_MongoDB_WithConfig(host string, port int, database, username, password string, tables []string, daoDir string, boPath string) error {
+	// 1. 连接 MongoDB
+	// 构建连接URI（使用您已验证的格式）
+	dsn := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s", username, password, host, port, database)
+
+	// 设置客户端选项
+	clientOptions := options.Client().
+		ApplyURI(dsn).
+		SetConnectTimeout(10 * time.Second).
+		SetMaxPoolSize(100).
+		SetMinPoolSize(5)
+
+	// 创建带超时的上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 建立连接
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// 验证连接 - 使用相同的上下文
+	if err := client.Ping(ctx, nil); err != nil {
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	return GenDao_MongoDB_WithClient(client, database, tables, daoDir, boPath)
+}
+
+func GenDao_MongoDB_WithClient(client *mongo.Client, database string, tables []string, daoDir string, boPath string) error {
+	for _, table := range tables {
+		model, err := tool.AnalyzeMongoCollection(client, database, table)
+		if err != nil {
+			return fmt.Errorf("failed to analyze collection %s: %w", table, err)
+		}
+
+		daoModel := tool.Model{
+			ModelName: model.ModelName,
+			Tablename: model.TableName,
+			BoPath:    boPath,
+			Fields:    tool.ConvertMongoFieldsToDAOFields(model.Fields),
+		}
+
+		// 使用 MongoDB 专用模板
+		tplContent, err := daoTplFS_mongo.ReadFile("dao_mongo.tpl")
+		if err != nil {
+			return fmt.Errorf("failed to read embedded template: %v", err)
+		}
+
+		if err := tool.GenerateFromBytes_dao(daoModel, tplContent, daoDir); err != nil {
+			return fmt.Errorf("failed to generate DAO file for %s: %w", table, err)
 		}
 	}
 

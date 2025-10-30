@@ -13,3 +13,19 @@ func TestGenDao_Mysql(t *testing.T) {
 	// 	t.Error(err)
 	// }
 }
+
+func TestGenDao_MongoDB(t *testing.T) {
+	// host := "127.0.0.1"
+	// port := 27017
+	// database := "test_1029"
+	// username := "appuser"
+	// password := "app123"
+	// tables := []string{"myCollection"}
+	// daoDir := "/Users/huanlema/Documents/Code/my_code/github_go-framework-v2/go-backnormal-gen/dao"
+	// boPath := "github.com/go-framework-v2/go-backnormal-gen/bo"
+
+	// err := GenDao_MongoDB_WithConfig(host, port, database, username, password, tables, daoDir, boPath)
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+}
