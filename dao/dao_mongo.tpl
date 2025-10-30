@@ -4,23 +4,24 @@ import (
 	"context"
 	"time"
 
-	"{{.BoPath}}"
+	"go-backnormal/src/internal/mongodb/model/bo"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// {{.ModelName}}Dao MongoDB 数据访问接口
-type {{.ModelName}}Dao interface {
+// UsersDao MongoDB 数据访问接口
+type UsersDao interface {
 	// 基础 CRUD 操作
-	FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error)
-	FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error)
-	Find(filter bson.M, opts ...*options.FindOptions) ([]*bo.{{.ModelName}}Bo, error)
-	Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
-	InsertMany(objs []*bo.{{.ModelName}}Bo) ([]primitive.ObjectID, error)
-	UpdateByID(id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error)
-	UpdateOne(filter bson.M, update bson.M) (*bo.{{.ModelName}}Bo, error)
+	FindByID(id primitive.ObjectID) (*bo.UsersBo, error)
+	FindOne(filter bson.M) (*bo.UsersBo, error)
+	Find(filter bson.M, opts ...*options.FindOptions) ([]*bo.UsersBo, error)
+	Insert(obj *bo.UsersBo) (*bo.UsersBo, error)
+	InsertMany(objs []*bo.UsersBo) ([]primitive.ObjectID, error)
+	UpdateByID(id primitive.ObjectID, update bson.M) (*bo.UsersBo, error)
+	UpdateOne(filter bson.M, update bson.M) (*bo.UsersBo, error)
 	UpdateMany(filter bson.M, update bson.M) (int64, error)
 	DeleteByID(id primitive.ObjectID) error
 	DeleteOne(filter bson.M) error
@@ -28,18 +29,18 @@ type {{.ModelName}}Dao interface {
 	Count(filter bson.M) (int64, error)
 
 	// MongoDB特有操作
-	FindWithPagination(filter bson.M, page, pageSize int64, sort bson.M) ([]*bo.{{.ModelName}}Bo, int64, error)
+	FindWithPagination(filter bson.M, page, pageSize int64, sort bson.M) ([]*bo.UsersBo, int64, error)
 	Aggregate(pipeline mongo.Pipeline) ([]bson.M, error)
 	BulkWrite(operations []mongo.WriteModel) (*mongo.BulkWriteResult, error)
 	CreateIndexes(indexes []mongo.IndexModel) ([]string, error)
-	FindOneAndUpdate(filter bson.M, update bson.M, opts ...*options.FindOneAndUpdateOptions) (*bo.{{.ModelName}}Bo, error)
-	FindOneAndDelete(filter bson.M, opts ...*options.FindOneAndDeleteOptions) (*bo.{{.ModelName}}Bo, error)
+	FindOneAndUpdate(filter bson.M, update bson.M, opts ...*options.FindOneAndUpdateOptions) (*bo.UsersBo, error)
+	FindOneAndDelete(filter bson.M, opts ...*options.FindOneAndDeleteOptions) (*bo.UsersBo, error)
 
 	// 业务方法
-	FindByStatus(status string) ([]*bo.{{.ModelName}}Bo, error)
-	FindActive() ([]*bo.{{.ModelName}}Bo, error)
-	UpdateStatusByID(id primitive.ObjectID, status string) (*bo.{{.ModelName}}Bo, error)
-	FindByFieldLike(fieldName, pattern string) ([]*bo.{{.ModelName}}Bo, error)
+	FindByStatus(status string) ([]*bo.UsersBo, error)
+	FindActive() ([]*bo.UsersBo, error)
+	UpdateStatusByID(id primitive.ObjectID, status string) (*bo.UsersBo, error)
+	FindByFieldLike(fieldName, pattern string) ([]*bo.UsersBo, error)
 
 	// 事务支持
 	BeginTransaction(ctx context.Context) (TransactionSession, error)
@@ -54,10 +55,10 @@ type TransactionSession interface {
 	EndSession(ctx context.Context)
 	
 	// 在事务中执行的操作
-	FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error)
-	FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error)
-	Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
-	UpdateByID(id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error)
+	FindByID(id primitive.ObjectID) (*bo.UsersBo, error)
+	FindOne(filter bson.M) (*bo.UsersBo, error)
+	Insert(obj *bo.UsersBo) (*bo.UsersBo, error)
+	UpdateByID(id primitive.ObjectID, update bson.M) (*bo.UsersBo, error)
 	DeleteByID(id primitive.ObjectID) error
 	Count(filter bson.M) (int64, error)
 }
@@ -69,18 +70,18 @@ type transactionSessionImpl struct {
 	ctx        context.Context
 }
 
-// custom{{.ModelName}}Dao 自定义 DAO 实现
-type custom{{.ModelName}}Dao struct {
+// customUsersDao 自定义 DAO 实现
+type customUsersDao struct {
 	collection *mongo.Collection
 	db         *mongo.Database
 	client     *mongo.Client
 }
 
-// New{{.ModelName}}Dao 创建新的 DAO 实例
-func New{{.ModelName}}Dao(db *mongo.Database) {{.ModelName}}Dao {
-	collection := db.Collection("{{.Tablename}}")
+// NewUsersDao 创建新的 DAO 实例
+func NewUsersDao(db *mongo.Database) UsersDao {
+	collection := db.Collection("users")
 	client := db.Client()
-	return &custom{{.ModelName}}Dao{
+	return &customUsersDao{
 		collection: collection,
 		db:         db,
 		client:     client,
@@ -88,9 +89,9 @@ func New{{.ModelName}}Dao(db *mongo.Database) {{.ModelName}}Dao {
 }
 
 // 基础 CRUD 方法（无上下文）
-func (d *custom{{.ModelName}}Dao) FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindByID(id primitive.ObjectID) (*bo.UsersBo, error) {
 	ctx := context.Background()
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -101,9 +102,9 @@ func (d *custom{{.ModelName}}Dao) FindByID(id primitive.ObjectID) (*bo.{{.ModelN
 	return &result, nil
 }
 
-func (d *custom{{.ModelName}}Dao) FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindOne(filter bson.M) (*bo.UsersBo, error) {
 	ctx := context.Background()
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -114,7 +115,7 @@ func (d *custom{{.ModelName}}Dao) FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, 
 	return &result, nil
 }
 
-func (d *custom{{.ModelName}}Dao) Find(filter bson.M, opts ...*options.FindOptions) ([]*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) Find(filter bson.M, opts ...*options.FindOptions) ([]*bo.UsersBo, error) {
 	ctx := context.Background()
 	cursor, err := d.collection.Find(ctx, filter, opts...)
 	if err != nil {
@@ -122,9 +123,9 @@ func (d *custom{{.ModelName}}Dao) Find(filter bson.M, opts ...*options.FindOptio
 	}
 	defer cursor.Close(ctx)
 
-	var results []*bo.{{.ModelName}}Bo
+	var results []*bo.UsersBo
 	for cursor.Next(ctx) {
-		var obj bo.{{.ModelName}}Bo
+		var obj bo.UsersBo
 		if err := cursor.Decode(&obj); err != nil {
 			return nil, err
 		}
@@ -133,7 +134,7 @@ func (d *custom{{.ModelName}}Dao) Find(filter bson.M, opts ...*options.FindOptio
 	return results, cursor.Err()
 }
 
-func (d *custom{{.ModelName}}Dao) Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) Insert(obj *bo.UsersBo) (*bo.UsersBo, error) {
 	ctx := context.Background()
 	now := time.Now()
 	if obj.CreatedAt.IsZero() {
@@ -152,7 +153,7 @@ func (d *custom{{.ModelName}}Dao) Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.Model
 	return obj, nil
 }
 
-func (d *custom{{.ModelName}}Dao) InsertMany(objs []*bo.{{.ModelName}}Bo) ([]primitive.ObjectID, error) {
+func (d *customUsersDao) InsertMany(objs []*bo.UsersBo) ([]primitive.ObjectID, error) {
 	ctx := context.Background()
 	if len(objs) == 0 {
 		return nil, nil
@@ -182,7 +183,7 @@ func (d *custom{{.ModelName}}Dao) InsertMany(objs []*bo.{{.ModelName}}Bo) ([]pri
 	return ids, nil
 }
 
-func (d *custom{{.ModelName}}Dao) UpdateByID(id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) UpdateByID(id primitive.ObjectID, update bson.M) (*bo.UsersBo, error) {
 	ctx := context.Background()
 	if update["$set"] == nil {
 		update["$set"] = bson.M{}
@@ -192,7 +193,7 @@ func (d *custom{{.ModelName}}Dao) UpdateByID(id primitive.ObjectID, update bson.
 	opts := options.FindOneAndUpdate().
 		SetReturnDocument(options.After)
 
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOneAndUpdate(ctx, bson.M{"_id": id}, update, opts).Decode(&result)
 	if err != nil {
 		return nil, err
@@ -200,7 +201,7 @@ func (d *custom{{.ModelName}}Dao) UpdateByID(id primitive.ObjectID, update bson.
 	return &result, nil
 }
 
-func (d *custom{{.ModelName}}Dao) UpdateOne(filter bson.M, update bson.M) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) UpdateOne(filter bson.M, update bson.M) (*bo.UsersBo, error) {
 	ctx := context.Background()
 	if update["$set"] == nil {
 		update["$set"] = bson.M{}
@@ -210,7 +211,7 @@ func (d *custom{{.ModelName}}Dao) UpdateOne(filter bson.M, update bson.M) (*bo.{
 	opts := options.FindOneAndUpdate().
 		SetReturnDocument(options.After)
 
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&result)
 	if err != nil {
 		return nil, err
@@ -218,7 +219,7 @@ func (d *custom{{.ModelName}}Dao) UpdateOne(filter bson.M, update bson.M) (*bo.{
 	return &result, nil
 }
 
-func (d *custom{{.ModelName}}Dao) UpdateMany(filter bson.M, update bson.M) (int64, error) {
+func (d *customUsersDao) UpdateMany(filter bson.M, update bson.M) (int64, error) {
 	ctx := context.Background()
 	if update["$set"] == nil {
 		update["$set"] = bson.M{}
@@ -232,19 +233,19 @@ func (d *custom{{.ModelName}}Dao) UpdateMany(filter bson.M, update bson.M) (int6
 	return result.ModifiedCount, nil
 }
 
-func (d *custom{{.ModelName}}Dao) DeleteByID(id primitive.ObjectID) error {
+func (d *customUsersDao) DeleteByID(id primitive.ObjectID) error {
 	ctx := context.Background()
 	_, err := d.collection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
 
-func (d *custom{{.ModelName}}Dao) DeleteOne(filter bson.M) error {
+func (d *customUsersDao) DeleteOne(filter bson.M) error {
 	ctx := context.Background()
 	_, err := d.collection.DeleteOne(ctx, filter)
 	return err
 }
 
-func (d *custom{{.ModelName}}Dao) DeleteMany(filter bson.M) (int64, error) {
+func (d *customUsersDao) DeleteMany(filter bson.M) (int64, error) {
 	ctx := context.Background()
 	result, err := d.collection.DeleteMany(ctx, filter)
 	if err != nil {
@@ -253,14 +254,14 @@ func (d *custom{{.ModelName}}Dao) DeleteMany(filter bson.M) (int64, error) {
 	return result.DeletedCount, nil
 }
 
-func (d *custom{{.ModelName}}Dao) Count(filter bson.M) (int64, error) {
+func (d *customUsersDao) Count(filter bson.M) (int64, error) {
 	ctx := context.Background()
 	return d.collection.CountDocuments(ctx, filter)
 }
 
 // MongoDB特有方法
-func (d *custom{{.ModelName}}Dao) FindWithPagination(filter bson.M, page, pageSize int64, sort bson.M) ([]*bo.{{.ModelName}}Bo, int64, error) {
-	ctx := context.Background()
+func (d *customUsersDao) FindWithPagination(filter bson.M, page, pageSize int64, sort bson.M) ([]*bo.UsersBo, int64, error) {
+	// ctx := context.Background()
 	skip := (page - 1) * pageSize
 	findOptions := options.Find().
 		SetSkip(skip).
@@ -283,7 +284,7 @@ func (d *custom{{.ModelName}}Dao) FindWithPagination(filter bson.M, page, pageSi
 	return results, total, nil
 }
 
-func (d *custom{{.ModelName}}Dao) Aggregate(pipeline mongo.Pipeline) ([]bson.M, error) {
+func (d *customUsersDao) Aggregate(pipeline mongo.Pipeline) ([]bson.M, error) {
 	ctx := context.Background()
 	cursor, err := d.collection.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -298,19 +299,19 @@ func (d *custom{{.ModelName}}Dao) Aggregate(pipeline mongo.Pipeline) ([]bson.M, 
 	return results, nil
 }
 
-func (d *custom{{.ModelName}}Dao) BulkWrite(operations []mongo.WriteModel) (*mongo.BulkWriteResult, error) {
+func (d *customUsersDao) BulkWrite(operations []mongo.WriteModel) (*mongo.BulkWriteResult, error) {
 	ctx := context.Background()
 	return d.collection.BulkWrite(ctx, operations)
 }
 
-func (d *custom{{.ModelName}}Dao) CreateIndexes(indexes []mongo.IndexModel) ([]string, error) {
+func (d *customUsersDao) CreateIndexes(indexes []mongo.IndexModel) ([]string, error) {
 	ctx := context.Background()
 	return d.collection.Indexes().CreateMany(ctx, indexes)
 }
 
-func (d *custom{{.ModelName}}Dao) FindOneAndUpdate(filter bson.M, update bson.M, opts ...*options.FindOneAndUpdateOptions) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindOneAndUpdate(filter bson.M, update bson.M, opts ...*options.FindOneAndUpdateOptions) (*bo.UsersBo, error) {
 	ctx := context.Background()
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOneAndUpdate(ctx, filter, update, opts...).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -321,9 +322,9 @@ func (d *custom{{.ModelName}}Dao) FindOneAndUpdate(filter bson.M, update bson.M,
 	return &result, nil
 }
 
-func (d *custom{{.ModelName}}Dao) FindOneAndDelete(filter bson.M, opts ...*options.FindOneAndDeleteOptions) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindOneAndDelete(filter bson.M, opts ...*options.FindOneAndDeleteOptions) (*bo.UsersBo, error) {
 	ctx := context.Background()
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := d.collection.FindOneAndDelete(ctx, filter, opts...).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -335,17 +336,17 @@ func (d *custom{{.ModelName}}Dao) FindOneAndDelete(filter bson.M, opts ...*optio
 }
 
 // 业务方法
-func (d *custom{{.ModelName}}Dao) FindByStatus(status string) ([]*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindByStatus(status string) ([]*bo.UsersBo, error) {
 	filter := bson.M{"status": status}
 	return d.Find(filter)
 }
 
-func (d *custom{{.ModelName}}Dao) FindActive() ([]*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindActive() ([]*bo.UsersBo, error) {
 	filter := bson.M{"status": "active"}
 	return d.Find(filter)
 }
 
-func (d *custom{{.ModelName}}Dao) UpdateStatusByID(id primitive.ObjectID, status string) (*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) UpdateStatusByID(id primitive.ObjectID, status string) (*bo.UsersBo, error) {
 	update := bson.M{
 		"$set": bson.M{
 			"status":     status,
@@ -355,13 +356,13 @@ func (d *custom{{.ModelName}}Dao) UpdateStatusByID(id primitive.ObjectID, status
 	return d.UpdateByID(id, update)
 }
 
-func (d *custom{{.ModelName}}Dao) FindByFieldLike(fieldName, pattern string) ([]*bo.{{.ModelName}}Bo, error) {
+func (d *customUsersDao) FindByFieldLike(fieldName, pattern string) ([]*bo.UsersBo, error) {
 	filter := bson.M{fieldName: bson.M{"$regex": pattern, "$options": "i"}}
 	return d.Find(filter)
 }
 
 // 事务支持
-func (d *custom{{.ModelName}}Dao) BeginTransaction(ctx context.Context) (TransactionSession, error) {
+func (d *customUsersDao) BeginTransaction(ctx context.Context) (TransactionSession, error) {
 	session, err := d.client.StartSession()
 	if err != nil {
 		return nil, err
@@ -381,7 +382,7 @@ func (d *custom{{.ModelName}}Dao) BeginTransaction(ctx context.Context) (Transac
 	}, nil
 }
 
-func (d *custom{{.ModelName}}Dao) WithTransaction(ctx context.Context, fn func(txSession TransactionSession) error) error {
+func (d *customUsersDao) WithTransaction(ctx context.Context, fn func(txSession TransactionSession) error) error {
 	txSession, err := d.BeginTransaction(ctx)
 	if err != nil {
 		return err
@@ -415,8 +416,8 @@ func (ts *transactionSessionImpl) EndSession(ctx context.Context) {
 	ts.session.EndSession(ctx)
 }
 
-func (ts *transactionSessionImpl) FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error) {
-	var result bo.{{.ModelName}}Bo
+func (ts *transactionSessionImpl) FindByID(id primitive.ObjectID) (*bo.UsersBo, error) {
+	var result bo.UsersBo
 	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
 		return ts.collection.FindOne(sc, bson.M{"_id": id}).Decode(&result)
 	})
@@ -429,8 +430,8 @@ func (ts *transactionSessionImpl) FindByID(id primitive.ObjectID) (*bo.{{.ModelN
 	return &result, nil
 }
 
-func (ts *transactionSessionImpl) FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error) {
-	var result bo.{{.ModelName}}Bo
+func (ts *transactionSessionImpl) FindOne(filter bson.M) (*bo.UsersBo, error) {
+	var result bo.UsersBo
 	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
 		return ts.collection.FindOne(sc, filter).Decode(&result)
 	})
@@ -443,7 +444,7 @@ func (ts *transactionSessionImpl) FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, 
 	return &result, nil
 }
 
-func (ts *transactionSessionImpl) Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error) {
+func (ts *transactionSessionImpl) Insert(obj *bo.UsersBo) (*bo.UsersBo, error) {
 	now := time.Now()
 	if obj.CreatedAt.IsZero() {
 		obj.CreatedAt = now
@@ -464,7 +465,7 @@ func (ts *transactionSessionImpl) Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.Model
 	return obj, nil
 }
 
-func (ts *transactionSessionImpl) UpdateByID(id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error) {
+func (ts *transactionSessionImpl) UpdateByID(id primitive.ObjectID, update bson.M) (*bo.UsersBo, error) {
 	if update["$set"] == nil {
 		update["$set"] = bson.M{}
 	}
@@ -473,7 +474,7 @@ func (ts *transactionSessionImpl) UpdateByID(id primitive.ObjectID, update bson.
 	opts := options.FindOneAndUpdate().
 		SetReturnDocument(options.After)
 
-	var result bo.{{.ModelName}}Bo
+	var result bo.UsersBo
 	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
 		return ts.collection.FindOneAndUpdate(sc, bson.M{"_id": id}, update, opts).Decode(&result)
 	})
