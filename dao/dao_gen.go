@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-framework-v2/go-backnormal-gen/tool"
 	_ "github.com/go-sql-driver/mysql" // 或其他数据库驱动
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -99,21 +100,30 @@ func GenDao_MongoDB_WithConfig(host string, port int, database, username, passwo
 		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
-	return GenDao_MongoDB_WithClient(client, database, tables, daoDir, boPath)
+	// 获取数据库实例
+	db := client.Database(database)
+	return GenDao_MongoDB_WithDB(db, tables, daoDir, boPath)
 }
 
-func GenDao_MongoDB_WithClient(client *mongo.Client, database string, tables []string, daoDir string, boPath string) error {
+func GenDao_MongoDB_WithDB(db *mongo.Database, tables []string, daoDir string, boPath string) error {
 	for _, table := range tables {
-		model, err := tool.AnalyzeMongoCollection(client, database, table)
-		if err != nil {
+		// 直接使用集合，不需要分析结构
+		collection := db.Collection(table)
+
+		// 获取一个样本文档来分析字段结构
+		var sampleDoc bson.M
+		err := collection.FindOne(context.Background(), bson.M{}).Decode(&sampleDoc)
+		if err != nil && err != mongo.ErrNoDocuments {
 			return fmt.Errorf("failed to analyze collection %s: %w", table, err)
 		}
 
+		// 构建模型信息
+		modelName := tool.ToCamelCase(table)
 		daoModel := tool.Model{
-			ModelName: model.ModelName,
-			Tablename: model.TableName,
+			ModelName: modelName,
+			Tablename: table,
 			BoPath:    boPath,
-			Fields:    tool.ConvertMongoFieldsToDAOFields(model.Fields),
+			Fields:    tool.InferFieldsFromMongoSample(sampleDoc),
 		}
 
 		// 使用 MongoDB 专用模板
@@ -126,6 +136,5 @@ func GenDao_MongoDB_WithClient(client *mongo.Client, database string, tables []s
 			return fmt.Errorf("failed to generate DAO file for %s: %w", table, err)
 		}
 	}
-
 	return nil
 }

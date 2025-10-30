@@ -29,3 +29,36 @@ func TestGenDao_MongoDB(t *testing.T) {
 	// 	t.Error(err)
 	// }
 }
+
+// // 使用示例
+// // 自动事务方式
+// err := dao.WithTransaction(context.Background(), func(txSession dao.TransactionSession) error {
+//     user1 := &bo.MycollectionBo{Name: "User1"}
+//     if _, err := txSession.Insert(user1); err != nil {
+//         return err // 自动回滚
+//     }
+
+//     user2 := &bo.MycollectionBo{Name: "User2"}
+//     if _, err := txSession.Insert(user2); err != nil {
+//         return err // 自动回滚
+//     }
+
+//     return nil // 自动提交
+// })
+
+// // 手动事务方式
+// txSession, err := dao.BeginTransaction(context.Background())
+// if err != nil {
+//     return err
+// }
+// defer txSession.EndSession(context.Background())
+
+// // 在事务中执行操作
+// _, err = txSession.Insert(&user)
+// if err != nil {
+//     txSession.AbortTransaction(context.Background())
+//     return err
+// }
+
+// // 提交事务
+// err = txSession.CommitTransaction(context.Background())

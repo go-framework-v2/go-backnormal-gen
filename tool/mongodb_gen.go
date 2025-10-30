@@ -218,3 +218,69 @@ func ConvertMongoFieldsToDAOFields(mongoFields []MongoField) []Field {
 
 	return daoFields
 }
+
+// InferFieldsFromMongoSample 从MongoDB样本文档推断字段
+func InferFieldsFromMongoSample(doc bson.M) []Field {
+	var fields []Field
+
+	// 总是包含ID字段
+	fields = append(fields, Field{
+		Name: "ID",
+		Type: "primitive.ObjectID",
+	})
+
+	for key, value := range doc {
+		// 跳过 _id 字段，因为我们已经手动添加了
+		if key == "_id" {
+			continue
+		}
+
+		field := Field{
+			Name: ToCamelCase(key),
+		}
+
+		// 根据值的类型推断 Go 类型
+		switch v := value.(type) {
+		case string:
+			field.Type = "string"
+		case int, int32:
+			field.Type = "int32"
+		case int64:
+			field.Type = "int64"
+		case float32, float64:
+			field.Type = "float64"
+		case bool:
+			field.Type = "bool"
+		case primitive.DateTime:
+			field.Type = "time.Time"
+		case primitive.ObjectID:
+			field.Type = "primitive.ObjectID"
+		case []interface{}:
+			field.Type = "[]interface{}"
+		case map[string]interface{}, bson.M:
+			field.Type = "bson.M"
+		default:
+			// 处理时间类型
+			if _, ok := v.(primitive.DateTime); ok {
+				field.Type = "time.Time"
+			} else {
+				field.Type = "interface{}"
+			}
+		}
+
+		fields = append(fields, field)
+	}
+
+	// 添加常用的时间字段（如果样本中没有）
+	commonTimeFields := []string{"created_at", "updated_at", "deleted_at"}
+	for _, timeField := range commonTimeFields {
+		if _, exists := doc[timeField]; !exists {
+			fields = append(fields, Field{
+				Name: ToCamelCase(timeField),
+				Type: "time.Time",
+			})
+		}
+	}
+
+	return fields
+}
