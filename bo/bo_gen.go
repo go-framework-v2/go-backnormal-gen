@@ -18,6 +18,9 @@ import (
 //go:embed bo.tpl
 var boTplFS embed.FS // 嵌入整个目录或单个文件
 
+//go:embed bo_mongo.tpl
+var boTplFS_mongo embed.FS // 嵌入整个目录或单个文件
+
 func GenBo_Mysql(dsn string, tables []string, boDir string, poPath string) error {
 	// 1. 连接数据库
 	//dsn: "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8mb4&parseTime=True&loc=Local"
@@ -116,7 +119,7 @@ func GenBo_MongoDB_WithConfig(host string, port int, database, username, passwor
 		}
 
 		// 从 embed.FS 读取模板内容
-		tplContent, err := boTplFS.ReadFile("bo.tpl")
+		tplContent, err := boTplFS_mongo.ReadFile("bo_mongo.tpl")
 		if err != nil {
 			return fmt.Errorf("failed to read embedded template: %v", err)
 		}
