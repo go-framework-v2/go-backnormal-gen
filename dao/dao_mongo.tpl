@@ -44,12 +44,6 @@ type {{.ModelName}}Dao interface {
 	// 事务支持
 	BeginTransaction(ctx context.Context) (TransactionSession, error)
 	WithTransaction(ctx context.Context, fn func(txSession TransactionSession) error) error
-	
-	// 带上下文的版本（用于事务）
-	FindByIDWithContext(ctx context.Context, id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error)
-	InsertWithContext(ctx context.Context, obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
-	UpdateByIDWithContext(ctx context.Context, id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error)
-	DeleteByIDWithContext(ctx context.Context, id primitive.ObjectID) error
 }
 
 // TransactionSession 事务会话接口
@@ -61,15 +55,18 @@ type TransactionSession interface {
 	
 	// 在事务中执行的操作
 	FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error)
+	FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error)
 	Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error)
 	UpdateByID(id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error)
 	DeleteByID(id primitive.ObjectID) error
+	Count(filter bson.M) (int64, error)
 }
 
 // transactionSessionImpl 事务会话实现
 type transactionSessionImpl struct {
 	session    mongo.Session
 	collection *mongo.Collection
+	ctx        context.Context
 }
 
 // custom{{.ModelName}}Dao 自定义 DAO 实现
@@ -380,28 +377,29 @@ func (d *custom{{.ModelName}}Dao) BeginTransaction(ctx context.Context) (Transac
 	return &transactionSessionImpl{
 		session:    session,
 		collection: d.collection,
+		ctx:        ctx,
 	}, nil
 }
 
 func (d *custom{{.ModelName}}Dao) WithTransaction(ctx context.Context, fn func(txSession TransactionSession) error) error {
-	session, err := d.BeginTransaction(ctx)
+	txSession, err := d.BeginTransaction(ctx)
 	if err != nil {
 		return err
 	}
-	defer session.EndSession(ctx)
+	defer txSession.EndSession(ctx)
 
 	// 执行事务函数
-	err = fn(session)
+	err = fn(txSession)
 	if err != nil {
 		// 出错时回滚事务
-		if abortErr := session.AbortTransaction(ctx); abortErr != nil {
+		if abortErr := txSession.AbortTransaction(ctx); abortErr != nil {
 			return abortErr
 		}
 		return err
 	}
 
 	// 提交事务
-	return session.CommitTransaction(ctx)
+	return txSession.CommitTransaction(ctx)
 }
 
 // 事务会话实现
@@ -419,7 +417,23 @@ func (ts *transactionSessionImpl) EndSession(ctx context.Context) {
 
 func (ts *transactionSessionImpl) FindByID(id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error) {
 	var result bo.{{.ModelName}}Bo
-	err := ts.collection.FindOne(ts.session, bson.M{"_id": id}).Decode(&result)
+	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		return ts.collection.FindOne(sc, bson.M{"_id": id}).Decode(&result)
+	})
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (ts *transactionSessionImpl) FindOne(filter bson.M) (*bo.{{.ModelName}}Bo, error) {
+	var result bo.{{.ModelName}}Bo
+	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		return ts.collection.FindOne(sc, filter).Decode(&result)
+	})
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -440,7 +454,10 @@ func (ts *transactionSessionImpl) Insert(obj *bo.{{.ModelName}}Bo) (*bo.{{.Model
 		obj.ID = primitive.NewObjectID()
 	}
 
-	_, err := ts.collection.InsertOne(ts.session, obj)
+	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		_, err := ts.collection.InsertOne(sc, obj)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +474,9 @@ func (ts *transactionSessionImpl) UpdateByID(id primitive.ObjectID, update bson.
 		SetReturnDocument(options.After)
 
 	var result bo.{{.ModelName}}Bo
-	err := ts.collection.FindOneAndUpdate(ts.session, bson.M{"_id": id}, update, opts).Decode(&result)
+	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		return ts.collection.FindOneAndUpdate(sc, bson.M{"_id": id}, update, opts).Decode(&result)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -465,59 +484,18 @@ func (ts *transactionSessionImpl) UpdateByID(id primitive.ObjectID, update bson.
 }
 
 func (ts *transactionSessionImpl) DeleteByID(id primitive.ObjectID) error {
-	_, err := ts.collection.DeleteOne(ts.session, bson.M{"_id": id})
-	return err
+	return mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		_, err := ts.collection.DeleteOne(sc, bson.M{"_id": id})
+		return err
+	})
 }
 
-// 带上下文的版本（用于事务）
-func (d *custom{{.ModelName}}Dao) FindByIDWithContext(ctx context.Context, id primitive.ObjectID) (*bo.{{.ModelName}}Bo, error) {
-	var result bo.{{.ModelName}}Bo
-	err := d.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (d *custom{{.ModelName}}Dao) InsertWithContext(ctx context.Context, obj *bo.{{.ModelName}}Bo) (*bo.{{.ModelName}}Bo, error) {
-	now := time.Now()
-	if obj.CreatedAt.IsZero() {
-		obj.CreatedAt = now
-	}
-	obj.UpdatedAt = now
-
-	if obj.ID.IsZero() {
-		obj.ID = primitive.NewObjectID()
-	}
-
-	_, err := d.collection.InsertOne(ctx, obj)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-func (d *custom{{.ModelName}}Dao) UpdateByIDWithContext(ctx context.Context, id primitive.ObjectID, update bson.M) (*bo.{{.ModelName}}Bo, error) {
-	if update["$set"] == nil {
-		update["$set"] = bson.M{}
-	}
-	update["$set"].(bson.M)["updated_at"] = time.Now()
-
-	opts := options.FindOneAndUpdate().
-		SetReturnDocument(options.After)
-
-	var result bo.{{.ModelName}}Bo
-	err := d.collection.FindOneAndUpdate(ctx, bson.M{"_id": id}, update, opts).Decode(&result)
-	if err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (d *custom{{.ModelName}}Dao) DeleteByIDWithContext(ctx context.Context, id primitive.ObjectID) error {
-	_, err := d.collection.DeleteOne(ctx, bson.M{"_id": id})
-	return err
+func (ts *transactionSessionImpl) Count(filter bson.M) (int64, error) {
+	var count int64
+	err := mongo.WithSession(ts.ctx, ts.session, func(sc mongo.SessionContext) error {
+		var err error
+		count, err = ts.collection.CountDocuments(sc, filter)
+		return err
+	})
+	return count, err
 }

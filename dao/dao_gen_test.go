@@ -30,35 +30,25 @@ func TestGenDao_MongoDB(t *testing.T) {
 	// }
 }
 
-// // 使用示例
 // // 自动事务方式
 // err := dao.WithTransaction(context.Background(), func(txSession dao.TransactionSession) error {
+//     // 在事务中插入数据
 //     user1 := &bo.MycollectionBo{Name: "User1"}
 //     if _, err := txSession.Insert(user1); err != nil {
 //         return err // 自动回滚
 //     }
 
-//     user2 := &bo.MycollectionBo{Name: "User2"}
-//     if _, err := txSession.Insert(user2); err != nil {
-//         return err // 自动回滚
+//     // 在事务中查询数据
+//     foundUser, err := txSession.FindByID(user1.ID)
+//     if err != nil {
+//         return err
+//     }
+
+//     // 在事务中更新数据
+//     update := bson.M{"$set": bson.M{"name": "UpdatedUser"}}
+//     if _, err := txSession.UpdateByID(user1.ID, update); err != nil {
+//         return err
 //     }
 
 //     return nil // 自动提交
 // })
-
-// // 手动事务方式
-// txSession, err := dao.BeginTransaction(context.Background())
-// if err != nil {
-//     return err
-// }
-// defer txSession.EndSession(context.Background())
-
-// // 在事务中执行操作
-// _, err = txSession.Insert(&user)
-// if err != nil {
-//     txSession.AbortTransaction(context.Background())
-//     return err
-// }
-
-// // 提交事务
-// err = txSession.CommitTransaction(context.Background())
