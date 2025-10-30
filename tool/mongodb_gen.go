@@ -171,3 +171,36 @@ func (*%s) CollectionName() string {
 		fieldsBuilder.String(),
 		model.ModelName, model.ModelName)
 }
+
+// CreateDefaultMongoModel 创建默认的 MongoDB 模型
+func CreateDefaultMongoModel(tableName string) *MongoModel {
+	// 确保模型名首字母大写
+	modelName := strings.Title(ToCamelCase2(tableName))
+
+	return &MongoModel{
+		ModelName:      modelName,
+		TableName:      tableName,
+		CollectionName: tableName,
+		Fields: []MongoField{
+			{Name: "ID", Type: "primitive.ObjectID", BSONTag: "_id,omitempty", OmitEmpty: true},
+			{Name: "Name", Type: "string", BSONTag: "name"},
+			{Name: "CreatedAt", Type: "time.Time", BSONTag: "created_at"},
+			{Name: "UpdatedAt", Type: "time.Time", BSONTag: "updated_at"},
+		},
+	}
+}
+
+// ConvertMongoFieldsToBOFields 将 MongoDB 字段转换为 BO 字段
+func ConvertMongoFieldsToBOFields(mongoFields []MongoField) []Field {
+	var boFields []Field
+
+	for _, mongoField := range mongoFields {
+		boField := Field{
+			Name: mongoField.Name,
+			Type: mongoField.Type,
+		}
+		boFields = append(boFields, boField)
+	}
+
+	return boFields
+}

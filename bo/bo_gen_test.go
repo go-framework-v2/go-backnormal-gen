@@ -13,3 +13,19 @@ func TestGenBo_Mysql(t *testing.T) {
 	// 	t.Error(err)
 	// }
 }
+
+func TestGenBo_MongoDB(t *testing.T) {
+	// host := "127.0.0.1"
+	// port := 27017
+	// database := "test_1029"
+	// username := "appuser"
+	// password := "app123"
+	// tables := []string{"myCollection"}
+	// boDir := "/Users/huanlema/Documents/Code/my_code/github_go-framework-v2/go-backnormal-gen/bo"
+	// poPath := "github.com/go-framework-v2/go-backnormal-gen/po"
+
+	// err := GenBo_MongoDB_WithConfig(host, port, database, username, password, tables, boDir, poPath)
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+}
