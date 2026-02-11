@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"html/template"
 	"os"
+	"text/template"
 	"path/filepath"
 	"strings"
 
