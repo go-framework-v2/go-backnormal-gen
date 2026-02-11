@@ -3,6 +3,7 @@ package ddd
 import (
 	"bytes"
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"html/template"
 	"os"
@@ -84,14 +85,14 @@ func GenRepository_Mysql(dsn string, tables []string, dddRepoDir string, domainP
 	}
 	defer db.Close()
 
-		domainPkg := filepath.Base(domainPath)
-		if domainPkg == "." || domainPkg == "/" {
-			domainPkg = "domain"
-		}
-		modelPkg := filepath.Base(modelPath)
-		if modelPkg == "." || modelPkg == "/" {
-			modelPkg = "model"
-		}
+	domainPkg := filepath.Base(domainPath)
+	if domainPkg == "." || domainPkg == "/" {
+		domainPkg = "domain"
+	}
+	modelPkg := filepath.Base(modelPath)
+	if modelPkg == "." || modelPkg == "/" {
+		modelPkg = "model"
+	}
 
 	for _, table := range tables {
 		fields, err := tool.GetTableFieldsForGorm(db, table)
