@@ -25,6 +25,14 @@ type Field struct {
 	Type string // Go 类型（如 "string"）
 }
 
+// FieldGorm 用于 DDD model 生成的 GORM 字段信息
+type FieldGorm struct {
+	ColumnName string // 数据库列名（如 "user_name"）
+	GoName     string // Go 字段名（如 "UserName"）
+	GoType     string // Go 类型（如 "string"）
+	GormTag    string // 完整 gorm tag（如 `gorm:"column:user_name;size:200;not null"`）
+}
+
 // 获取数据库所有表名（MySQL 示例）
 func GetTables(db *sql.DB) ([]string, error) {
 	rows, err := db.Query("SHOW TABLES")
@@ -69,6 +77,97 @@ func GetTableFields(db *sql.DB, table string) ([]Field, error) {
 		})
 	}
 	return fields, nil
+}
+
+// GetTableFieldsForGorm 获取表的字段信息，用于生成 DDD GORM PO（含 gorm tag）
+func GetTableFieldsForGorm(db *sql.DB, table string) ([]FieldGorm, error) {
+	query := `
+        SELECT column_name, data_type, character_maximum_length, is_nullable, column_key, column_default, extra
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = ?
+        ORDER BY ordinal_position
+    `
+	rows, err := db.Query(query, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var maxLen sql.NullInt64
+	var defVal, extra sql.NullString
+	var fields []FieldGorm
+	for rows.Next() {
+		var name, sqlType, isNullable, columnKey string
+		if err := rows.Scan(&name, &sqlType, &maxLen, &isNullable, &columnKey, &defVal, &extra); err != nil {
+			return nil, err
+		}
+		goType := sqlTypeToGoType(sqlType)
+		// 特殊列：deleted_at 使用 gorm.DeletedAt
+		if name == "deleted_at" {
+			goType = "gorm.DeletedAt"
+		}
+		tag := buildGormTag(name, sqlType, maxLen, isNullable, columnKey, defVal, extra)
+		fields = append(fields, FieldGorm{
+			ColumnName: name,
+			GoName:     ToCamelCase(name),
+			GoType:     goType,
+			GormTag:    tag,
+		})
+	}
+	return fields, nil
+}
+
+// buildGormTag 根据列信息生成 gorm tag
+func buildGormTag(columnName, sqlType string, maxLen sql.NullInt64, isNullable, columnKey string, defVal, _ sql.NullString) string {
+	var parts []string
+	parts = append(parts, "column:"+columnName)
+	sqlType = strings.ToLower(sqlType)
+	switch {
+	case strings.Contains(sqlType, "int"), strings.Contains(sqlType, "bigint"), strings.Contains(sqlType, "tinyint"):
+		if columnKey == "PRI" {
+			parts = append(parts, "primaryKey")
+		}
+	case strings.Contains(sqlType, "varchar"), strings.Contains(sqlType, "char"):
+		if columnKey == "PRI" {
+			parts = append(parts, "primaryKey")
+		}
+		if maxLen.Valid && maxLen.Int64 > 0 {
+			parts = append(parts, fmt.Sprintf("size:%d", maxLen.Int64))
+		}
+		if isNullable == "NO" {
+			parts = append(parts, "not null")
+		}
+		if columnKey == "UNI" || columnKey == "MUL" {
+			parts = append(parts, "index")
+		}
+	default:
+		if columnKey == "PRI" {
+			parts = append(parts, "primaryKey")
+		}
+		if strings.Contains(sqlType, "varchar") || strings.Contains(sqlType, "char") {
+			if maxLen.Valid && maxLen.Int64 > 0 {
+				parts = append(parts, fmt.Sprintf("size:%d", maxLen.Int64))
+			}
+		}
+	}
+	if isNullable == "NO" && !strings.Contains(columnName, "deleted_at") {
+		if !strings.Contains(strings.Join(parts, ";"), "not null") {
+			parts = append(parts, "not null")
+		}
+	}
+	if defVal.Valid && defVal.String != "" && defVal.String != "CURRENT_TIMESTAMP" && defVal.String != "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" {
+		parts = append(parts, "default:"+defVal.String)
+	}
+	if columnName == "created_at" {
+		parts = append(parts, "autoCreateTime")
+	}
+	if columnName == "updated_at" {
+		parts = append(parts, "autoUpdateTime")
+	}
+	if columnName == "deleted_at" {
+		parts = append(parts, "index")
+	}
+	return "`gorm:\"" + strings.Join(parts, ";") + "\"`"
 }
 
 // Generate
@@ -220,7 +319,7 @@ func sqlTypeToGoType(sqlType string) string {
 	switch {
 	// int 类型
 	case strings.Contains(sqlType, "int"):
-		return "in32"
+		return "int32"
 	case strings.Contains(sqlType, "bigint"):
 		return "int64"
 	case strings.Contains(sqlType, "tinyint"):
